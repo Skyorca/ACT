@@ -1,57 +1,91 @@
-# Cross-Domain Graph Anomaly Detection via Anomaly-aware Contrastive Alignment (ACT)
+#### 工作流
 
-<a href="https://arxiv.org/abs/2212.01096"><img src="https://img.shields.io/badge/arXiv-2212.01096-b31b1b.svg" height=20></a> 
-<a href="https://pytorch.org/get-started/locally/"><img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white"></a>
+main入口： /exp/pipelines/run_framework.py
+phase 1. 在源域上训练模型
+phase 2. 训练adaptation模型
+phase 3. 用isolation forest给目标域打伪标签
 
-The official PyTorch implementation of **Cross-Domain Graph Anomaly Detection via Anomaly-aware Contrastive Alignment**, AAAI2023, to appear.
+#### 数据格式
 
-By Qizhou Wang, Guansong Pang, Mahsa Salehi, Wray Buntine and Christopher Leckie.
+mat格式：
+utils/data.py两个函数读取
 
-<p align="center">
-<img src=".github/tsne_1.png" alt="drawing" width="500"/>
-</p>
+def load_mat(file_dir, fn):
+    fp = join(file_dir, fn)
+    data = sio.loadmat(fp)
+    return {
+        "features": sp.lil_matrix(data['Attributes']),
+        "adj": sp.csr_matrix(data['Network']),
+        "ad_labels": np.squeeze(np.array(data['Label']))
+    }
 
-t-SNE visualisation of a CD GAD dataset before (a) and after (b) our anomaly-aware contrastive alignment. Compared to (a) where the two domains show clear discrepancies in different aspects like anomaly distribution, in (b) our domain alignment approach effectively aligns the normal class, while pushing away the anomalous nodes in both source and target domains from the normal class.
 
-## Requirements
-<li>python==3.8.12
-<li>pytorch==1.8.0
-<li>pytorch geometric==2.0.1
-<li>numpy==1.21.2
-<li>scipy==1.7.1
-<li>cudatoolkit==11.1.1
-<li>scikit-learn==1.0.1
-<li>geomloss==0.2.4
 
-## Instructions
+def mat_to_pyg_data(data, undirected=True):
+    features = torch.from_numpy(data["features"].todense()).float()
+    adj = data["adj"]
+    edge_index, _ = from_scipy_sparse_matrix(adj)
+    ad_labels = data['ad_labels']
+    if undirected:
+        print("Processing the graph as undirected...")
+        if data.is_directed():
+            edge_index = to_undirected(data.edge_index)
+    data = Data(x=features, edge_index=edge_index)
+    if undirected:
+        assert data.is_undirected()
+    return data, ad_labels
 
-Miniconda/Anaconda is recommended for setting up the dependencies.
-```bash
-git clone https://github.com/QZ-WANG/ACT
-cd ACT
-conda env create -f env/environment.yml
-```
-To set up the dataset directories, place the data files as the following:
-```
-datasets/
-├── Amazon
-│   └── Amazon.mat
-├── YelpHotel
-│   └── YelpHotel.mat
-├── YelpNYC
-│   └── YelpNYC.mat
-└── YelpRes
-    └── YelpRes.mat
-```
-The authors of [COMMANDER (Ding et al. 2021)](https://ieeexplore.ieee.org/document/9556511) have kindly allowed us to share the datasets. Please ensure appropriate citations when using the datasets.
 
-## Getting started
-To run the framework:
-```bash
-chmod +x ./script/pipeline.sh
-./script/pipeline.sh <name-of-pipeline-config-file>
-```
-Please see the sample meta config file in `./exp/pipelines/config`.
 
-## Acknowledgement
-We thank the authors of [COMMANDER (Ding et al. 2021)](https://ieeexplore.ieee.org/document/9556511) for sharing the datasets. This repository is developed using [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/).
+#### 包含的全部模型
+
+
+
+#### 工作流文件
+
+
+
+
+`phase 1` /exp/gdev_net_sup/gdev_net_sup.py
+主要调用runners.g_dev_net_runner.GraphDevNetRunner加载数据和模型进行训练，模型：models.gnns.graph_dev_net.GraphDevNet
+
+note1: 每次batch训练都从正负样本中分别均等采样然后计算loss
+note2: 有梯度裁剪的操作
+note3: 由于使用deviation loss，所以分类器输出一个未经激活的value, 分类层(n_dim,1) / 可换成BCElWithLogitsLoss
+
+训练完之后source encoder存在了ckpt,模型的state_dict和优化器的state_dict 【ckpt/src_gdev/{dataset}_{time}/best.pt】
+
+`phase 2` /exp/act/act.py
+调用runners/act_runner.py
+主要包含跨域负样本（正常节点）之间的sinkhorn loss和 目标域节点的对比学习loss
+需要知道目标域节点的标签才行，这部分如何和伪标签算法联动？
+note1: sinkhorn loss和对比loss分别优化，优化两次，而不是加在一起过后联合优化
+
+note2: 这里直接用source model的分类层打分，而没有训练新的target打分层
+
+加载phase1的source encoder，实例化新的target encoder
+
+训练完之后存target encoder 【ckpt/act/{src}_to_{tgt}_{time}/unsup_act_{epoch}.pt】
+
+
+
+Q: 是怎么做到target和source oneclass对齐的？
+
+对齐的是随机的embedding而没有把类别信息加进去。
+
+
+
+`phase 3` /exp/sl/sl.py
+
+调用target encoder，利用IF打异常分数之后利用ranking找到可靠的正负样本伪标签集合，之后利用deviation loss优化target encoder，最后输出结果
+
+
+
+三个阶段不是反复迭代的关系，是串行；phase3相当于一个引入外界的先验进行修正的过程
+
+
+
+#### 改动
+
+1. base runner去掉tensorboard
+2. 
