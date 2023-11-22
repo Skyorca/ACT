@@ -4,10 +4,7 @@ seed: 42
 # Name of the dataset
 dset_name: "YelpRes"
 # The folder where the dataset is stored
-dset_dir: "./datasets/YelpRes/"
-proj_dir: "./"
-# directory to store ckpts - can be different from proj_dir if main disk space is limited
-share_dir: "./"
+dset_dir: "/datasets/YelpRes/"
 # Dataset filename
 dset_fn: "YelpRes.mat"
 encoder_type: sage
@@ -23,7 +20,7 @@ n_workers: 12
 lr: 1.0e-03
 weight_decay: 0.0
 batch_size: 128
-n_epochs: 50
+n_epochs: 5
 dropout: 0.5
 
 # Scheduler setting only used when scheduler is not null
