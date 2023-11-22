@@ -1,13 +1,15 @@
 # Source model training - Graph DevNet
-
+import sys
+sys.path.append("../../..")
 import numpy as np
 import torch
 from torch_geometric.loader import NeighborSampler
-from utils.data import load_mat, mat_to_pyg_data, load_yaml, train_test_split
-from runners.g_dev_net_runner import GraphDevNetRunner
-from models.gnns.graph_dev_net import GraphDevNet
+from ACT.utils.data import load_mat, mat_to_pyg_data, load_yaml, train_test_split
+from ACT.runners.g_dev_net_runner import GraphDevNetRunner
+from ACT.models.gnns.graph_dev_net import GraphDevNet
 import argparse
 from datetime import datetime
+import os
 from os.path import join
 import random
 import json
@@ -21,11 +23,11 @@ def do_exp():
         timestamp = now.strftime("%d-%m-%Y-%H-%M-%S")
 
     print("timestamp: %s" % timestamp)
-
+    args.dset_dir = args.proj_dir+args.dset_dir
     data = load_mat(args.dset_dir, args.dset_fn)
 
     data, ad_labels = mat_to_pyg_data(data, undirected=False)
-
+    
     if args.use_train_split:
         print("Use a subset (%.2f) for training..." % args.train_ratio)
         (inlier_train_idx, outlier_train_idx), _, val_idx = train_test_split(ad_labels, args.train_ratio, 0.0)
@@ -99,6 +101,8 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int)
     parser.add_argument("--device", type=int, default=None)
     args = parser.parse_args()
+    args.proj_dir = os.path.abspath(os.path.join(os.getcwd(),"../.."))
+    args.share_dir = os.path.abspath(os.path.join(os.getcwd(),"../.."))
 
     if args.config_fn is not None:
         config = load_yaml(join(args.proj_dir, "exp", "gdev_net_sup/config", args.config_fn + ".yaml"))
