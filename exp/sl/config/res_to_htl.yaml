@@ -1,8 +1,8 @@
 # seed: 42
 
 # Directories
-dset_dir: "./datasets/"
-share_dir: "./"
+dset_dir: "/datasets/"
+
 
 # Mode [pseudo_unsup_test,  src_raw_test, src_raw_pseudo_test]
 mode: sl
@@ -72,7 +72,7 @@ target:
   ebd_dim: 64
   n_layers: 2
   drop_out: 0.5
-  state_fn: unsup_act_49.pt
+  state_fn: unsup_act.pt
 
 # Models
 encoder_type: sage
