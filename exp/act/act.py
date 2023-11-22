@@ -1,9 +1,11 @@
+import sys
+sys.path.append("../../..")
 import numpy as np
 import torch
-from utils.data import load_mat, mat_to_pyg_data, load_yaml
-from runners.act_runner import ACTRunner
+from ACT.utils.data import load_mat, mat_to_pyg_data, load_yaml
+from ACT.runners.act_runner import ACTRunner
 
-from models.gnns.graph_dev_net import GraphDevNet
+from ACT.models.gnns.graph_dev_net import GraphDevNet
 
 import argparse
 
@@ -14,8 +16,8 @@ import random
 import json
 import os
 
-from utils.model import load_model
-from models.gnns import build_feature_extractor
+from ACT.utils.model import load_model
+from ACT.models.gnns import build_feature_extractor
 
 def do_exp():
     if args.timestamp is None:
@@ -27,7 +29,7 @@ def do_exp():
     task_name = args.source['dset_name'] + "2" + args.target['dset_name']
 
     print("timestamp: %s" % timestamp)
-
+    args.dset_dir= args.proj_dir+args.dset_dir
     src_data = load_mat(join(args.dset_dir, args.source['dset_name']), args.source['dset_fn'])
     src_data, src_ad_labels = mat_to_pyg_data(src_data, undirected=False)
 
@@ -101,6 +103,7 @@ def do_exp():
         else:
             raise NotImplementedError("Invalid Graph Objective")
     elif not args.target['adapt'] and args.target['model_path'] is not None:
+        """这个分支是无用的"""
         target_model_path = join(args.target['model_path'], "unsup_warmup_49.pt")
         models['target'] = load_model(models['target'], target_model_path)
         runner = MultiViewRunner(x_all, edge_all, models, labels, optim_param, device, out_paths, 128, args)
@@ -112,7 +115,7 @@ def do_exp():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--proj_dir", type=str, default="/media/nvme1/pycharm_mirror/GDA")
+    parser.add_argument("--proj_dir", type=str, default="")
     parser.add_argument("--config_fn", type=str, default="config_res_hotel_0")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--batch_id", type=str, default=None)
@@ -121,6 +124,8 @@ if __name__ == "__main__":
     parser.add_argument("--src_ckpt_dir", type=str, default=None)
     parser.add_argument("--device", type=int, default=None)
     args = parser.parse_args()
+    args.proj_dir = os.path.abspath(os.path.join(os.getcwd(),"../.."))
+    args.share_dir = os.path.abspath(os.path.join(os.getcwd(),"../.."))
 
     if args.batch_id == "null":
         args.batch_id = None
