@@ -1,7 +1,5 @@
 # dataset
-dset_dir: "./datasets/"
-proj_dir: "./"
-share_dir: "./"
+dset_dir: "/datasets/"
 encoder_type: sage
 graph_obj: sage_unsup
 adj_dropout: 0.0
@@ -45,7 +43,7 @@ sh_blur: 0.05
 
 # Adapt
 adapt:
-  n_epochs: 50
+  n_epochs: 2
   name: adam
   weight_decay: 0.
   domain_lr: 1.0e-04
