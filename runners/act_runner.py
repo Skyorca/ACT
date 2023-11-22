@@ -1,6 +1,8 @@
+import sys
+sys.path.append("../../..")
 import warnings
-from runners.base_runner import BaseRunner
-from utils.optim import get_optimiser, get_scheduler
+from ACT.runners.base_runner import BaseRunner
+from ACT.utils.optim import get_optimiser, get_scheduler
 
 import torch
 import torch.nn as nn
@@ -8,7 +10,7 @@ import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score, average_precision_score
 
 from torch_geometric.loader import NeighborSampler
-from models.samplers.sage_sampler import SageUnsupSampler
+from ACT.models.samplers.sage_sampler import SageUnsupSampler
 
 from geomloss import SamplesLoss
 
@@ -62,7 +64,7 @@ class ACTRunner(BaseRunner):
         self.source_inlier_idx = (self.source_labels == 0).nonzero(as_tuple=True)[0]
         self.source_outlier_idx = (self.source_labels == 1).nonzero(as_tuple=True)[0]
 
-        # Randomly select k inliers as the known
+        # Randomly select k inliers as the known （jias）
         self.target_inlier_idx = (self.target_labels == 0).nonzero(as_tuple=True)[0]
         self.target_outlier_idx = (self.target_labels == 1).nonzero(as_tuple=True)[0]
         k_target_inlier_idx = self.target_inlier_idx[torch.randperm(self.target_inlier_idx.size(0))[:self.k]].sort()[0]
@@ -95,10 +97,12 @@ class ACTRunner(BaseRunner):
         return ebds
 
     def sage_unsup_train(self, n_epochs, q=1):
+        """forward"""
         self.target_model.reset_parameters()
 
         self.target_model.train()
 
+        # 这里有涉及到target domain标签吗？
         train_loader = SageUnsupSampler(edge_index=self.target_edge_idx,
                                         sizes=self.args.target['sampling_sizes'],
                                         node_idx=None,
@@ -122,7 +126,7 @@ class ACTRunner(BaseRunner):
         auroc, aupr = self.val_target("src")
         print("Init. auroc: %.4f    aupr: %.4f" % (auroc, aupr))
 
-        self.write_tb({"val_auroc": auroc}, 0)
+        # self.write_tb({"val_auroc": auroc}, 0)
 
         if self.args.adapt['scheduler'] is not None:
             print("getting scheduler")
@@ -155,7 +159,7 @@ class ACTRunner(BaseRunner):
                     out = self.target_model(self.target_x_all[n_id].to(self.device), adjs)
                     src_train_ebd = self.single_pass(self.source_model.feature_extractor, self.source_x_all,
                                                      src_train_loader, self.single_layer==1)
-
+                    # 计算两个src全部embedding和tgt的batch之间的距离？
                     domain_loss = sinkhorn(out, src_train_ebd)
 
                     domain_loss.backward()
@@ -185,7 +189,7 @@ class ACTRunner(BaseRunner):
                         "struct. loss": struct_loss,
                     }
                 }
-                self.write_tb(batch_perf_dict, n_batch_per_epoch * epoch + bn)
+                # self.write_tb(batch_perf_dict, n_batch_per_epoch * epoch + bn)
 
             if (epoch+1) % 10 == 0:
                 target_auroc, aupr = self.val_target("src")
@@ -198,7 +202,7 @@ class ACTRunner(BaseRunner):
         self.save_state({'epoch': n_epochs-1,
                          'model_state_dict': self.target_model.state_dict(),
                          'optimizer_state_dict': self.target_optimiser.state_dict(),
-                         }, "unsup_act_%s" %str(n_epochs-1))
+                         }, "unsup_act" )
 
     def val_target(self, detector):
         print("Testing on the target...")
