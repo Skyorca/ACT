@@ -1,7 +1,9 @@
+import sys
+sys.path.append("../../..")
 import argparse
 import os
 from os.path import join
-from utils.data import load_yaml
+from ACT.utils.data import load_yaml
 from datetime import datetime
 from random import seed, randint
 
@@ -21,6 +23,8 @@ def do_exp():
 
     # train source model
     print("Source training...")
+    print(args.proj_dir)
+    args.src_script = args.proj_dir+args.src_script
     os.system("python -u %s --config_fn %s --timestamp %s  --ckpt_dir %s --seed %d  --proj_dir %s%s" %
               (args.src_script, args.src_config, timestamp, src_ckpt_dir, randint(0, 2 ** 32),
                args.proj_dir, dev_str))
@@ -29,7 +33,7 @@ def do_exp():
     print("\nAdapting...")
     adapt_task_name = "%s_to_%s" % (args.src_dset_name, args.tar_dset_name)
     tar_ckpt_dir = join(args.shared_dir, "ckpt", "act", adapt_task_name + "_" + timestamp)
-
+    args.adapt_script = args.proj_dir + args.adapt_script
     os.system("python -u %s --config_fn %s --timestamp %s  --ckpt_dir %s --src_ckpt_dir %s --seed %d --proj_dir %s%s" %
               (args.adapt_script, args.adapt_config, timestamp, tar_ckpt_dir, src_ckpt_dir,
                randint(0, 2 ** 16), args.proj_dir, dev_str))
@@ -39,6 +43,7 @@ def do_exp():
     # Pseudo Labelling
     # with Isolation Forest
     ckpts = "%s" % tar_ckpt_dir
+    args.pl_script = args.proj_dir + args.pl_script
     os.system("python -u %s --config_fn %s --ckpts %s --seed %d  --proj_dir %s  --which_label iForest --src_ckpt_dir %s%s" %
               (args.pl_script, args.pl_config, ckpts, randint(0, 2 ** 32), args.proj_dir, src_ckpt_dir,
                dev_str))
@@ -48,14 +53,14 @@ def do_exp():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--proj_dir", type=str, default="/media/nvme1/pycharm_mirror/GUDA_release")
+    parser.add_argument("--proj_dir", type=str)
     parser.add_argument("--config_fn", type=str, default="htl_to_res_rdc_0")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=int, default=None)
     parser.add_argument("--batch_id", type=str, default=None)
     args = parser.parse_args()
-    print(os.getcwd())
-
+    args.proj_dir = os.path.abspath(os.path.join(os.getcwd(),"../.."))
+    args.shared_dir = os.path.abspath(os.path.join(os.getcwd(),"../.."))
     seed(args.seed)
 
     if args.config_fn is not None:
