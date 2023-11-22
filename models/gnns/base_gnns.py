@@ -26,12 +26,15 @@ class GraphSAGE(torch.nn.Module):
 
         self.adj_dropout = adj_dropout
 
+        self.bn = nn.BatchNorm1d(num_features=hidden_channels)
+        self.linear_input = nn.Linear(in_channels, hidden_channels)
+
         if self.num_layers == 1:
             print("Building single-layer GraphSage")
-            self.convs.append(SAGEConv(in_channels, out_channels))
+            self.convs.append(SAGEConv(hidden_channels, out_channels))
         else:
             print("Building multi-layer GraphSage")
-            self.convs.append(SAGEConv(in_channels, hidden_channels, normalize=self.normalise))
+            self.convs.append(SAGEConv(hidden_channels, hidden_channels, normalize=self.normalise))
 
             for _ in range(num_layers - 2):
                 print("One hidden layer added.")
@@ -55,6 +58,8 @@ class GraphSAGE(torch.nn.Module):
         # and the size/shape `size` of the bipartite graph.
         # Target nodes are also included in the source nodes so that one can
         # easily apply skip-connections or add self-loops.
+        x = self.linear_input(x)
+        x = self.bn(x)
         for i, (edge_index, _, size) in enumerate(adjs):
             x_target = x[:size[1]]  # Target nodes are always placed first.
 
