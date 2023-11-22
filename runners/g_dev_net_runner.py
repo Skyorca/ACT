@@ -1,13 +1,14 @@
 # Source training runner
+import sys
+sys.path.append("../../..")
+from ACT.runners.base_runner import BaseRunner
+from ACT.utils.optim import get_optimiser, get_scheduler, get_lr
 
-from runners.base_runner import BaseRunner
-from utils.optim import get_optimiser, get_scheduler, get_lr
-
-from models.losses import build_criterion
+from ACT.models.losses import build_criterion
 
 import torch
 
-from utils.evaluation import SupEvaluator
+from ACT.utils.evaluation import SupEvaluator
 
 
 class GraphDevNetRunner(BaseRunner):
@@ -74,6 +75,7 @@ class GraphDevNetRunner(BaseRunner):
                 loss += loss1
 
                 loss.backward()
+                # note: 梯度裁剪的操作？
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
                 self.optimiser.step()
                 total_loss += float(loss)
