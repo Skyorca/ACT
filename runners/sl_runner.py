@@ -1,7 +1,9 @@
-from runners.base_runner import BaseRunner
-from utils.optim import get_optimiser, get_scheduler
+import sys
+sys.path.append("../../..")
+from ACT.runners.base_runner import BaseRunner
+from ACT.utils.optim import get_optimiser, get_scheduler
 from torch_geometric.loader import NeighborSampler
-from models.losses import build_criterion
+from ACT.models.losses import build_criterion
 
 import torch
 
@@ -66,6 +68,7 @@ class SLRunner(BaseRunner):
             drop_last=False
         )
 
+        # 为什么还要再拿源域的标签再训练一遍？防止遗忘
         self.src_in_loader = NeighborSampler(
             edge_index=self.src_edge_index,
             node_idx=self.src_labels == 0,
@@ -118,7 +121,7 @@ class SLRunner(BaseRunner):
 
             if step > 0 and step % n_batch_in == 0:
                 pseudo_in_iter = iter(self.inlier_train_loader)
-
+            #  single pass什么意思？
             out_ebds, out_n_ids = self.single_pass(self.model, self.tar_x_all, pseudo_out_iter, self.single_layer)
             in_ebds, in_n_ids = self.single_pass(self.model, self.tar_x_all, pseudo_in_iter, self.single_layer)
 
