@@ -1,10 +1,12 @@
+import sys
+sys.path.append("../../..")
 import numpy as np
 import torch
 
-from utils.data import load_mat, mat_to_pyg_data, load_yaml
+from ACT.utils.data import load_mat, mat_to_pyg_data, load_yaml
 
-from models.gnns.graph_dev_net import GraphDevNet
-from models.gnns import build_feature_extractor
+from ACT.models.gnns.graph_dev_net import GraphDevNet
+from ACT.models.gnns import build_feature_extractor
 import argparse
 
 from datetime import datetime
@@ -15,13 +17,13 @@ import json
 import os
 from os.path import join
 
-from utils.ranking import pseudo_labeling_eval, sigma_selection
-from utils.log import save_config, set_up_logging
-from utils.basic_ops import single_pass
-from utils.model import load_model
+from ACT.utils.ranking import pseudo_labeling_eval, sigma_selection
+from ACT.utils.log import save_config, set_up_logging
+from ACT.utils.basic_ops import single_pass
+from ACT.utils.model import load_model
 
 from torch_geometric.loader import NeighborSampler
-from runners.sl_runner import SLRunner
+from ACT.runners.sl_runner import SLRunner
 from sklearn.metrics import roc_auc_score, average_precision_score
 
 from sklearn.ensemble import IsolationForest
@@ -58,6 +60,7 @@ def get_all_ebds(encoder, data, device):
 
 
 def gdev_if_pred(model, data, device):
+    """IF(tar_encoder(tar.x, tar.edge_index))"""
     model.to(device)
     all_ebds = get_all_ebds(model, data, device)
 
@@ -85,6 +88,10 @@ def test_apply_src(src_model, target_data, target_labels, device):
 
 
 def test_one_timestamp(src_data, tar_data, src_labels, tar_labels, ckpts, optim_params, out_paths, device):
+    """
+    加载之前训练的target encoder，用IF给出预测分数并用ranking方法给出可靠的伪正负样本，之后用deviation loss重新训练
+    target encoder,最后存储（？）
+    """
     tar_encoder = build_feature_extractor(args.encoder_type, args, source=False)
     tar_model = GraphDevNet(args.encoder_type, args, source=False)
 
@@ -92,13 +99,14 @@ def test_one_timestamp(src_data, tar_data, src_labels, tar_labels, ckpts, optim_
     tar_path = join(args.target['model_dir'], ckpts['tar'], args.target['state_fn'])
     # print("src path: ", src_path)
     print("tar path: ", tar_path)
-
+    # load target encoder for retraining w. pseudo labels
     src_model, tar_encoder = None, load_model(tar_encoder, tar_path).to(device)
 
     # Display dataset information
     n_all, n_in, n_out = tar_data.x.size(0), torch.sum(tar_labels == 1), torch.sum(tar_labels == 0)
     print("Target dataset info: %d nodes, %d outliers (%.4f) and %d inliers" % (n_all, n_in, n_in/n_all, n_out))
 
+    # 给出target domain伪标签
     if args.which_label == 'iForest':
         pred = gdev_if_pred(tar_encoder, tar_data, device)
         auroc, aupr = roc_auc_score(tar_labels, pred), average_precision_score(tar_labels, pred)
@@ -114,14 +122,17 @@ def test_one_timestamp(src_data, tar_data, src_labels, tar_labels, ckpts, optim_
 
     # pseudo_labeling_eval(pseudo_out_idx, torch.where(tar_labels == 1)[0], outlier=True)
     # pseudo_labeling_eval(pseudo_in_idx, torch.where(tar_labels == 0)[0], outlier=False)
-
+    
+    # 置信度比较高的正负样本伪标签
     pseudo_idx = {"inlier": pseudo_in_idx, "outlier": pseudo_out_idx}
 
+    # 需要retrain的是target encoder
     init_weights(tar_model)
 
     runner = SLRunner(src_data, tar_data, tar_model, optim_params, device, tar_labels, out_paths,
                       src_labels, pseudo_idx, args)
 
+    # 为什么要传source model(None)进去？
     runner.train(src_model)
 
 
@@ -137,6 +148,7 @@ def do_exp():
     logger = set_up_logging(log_dir, timestamp, "gdev_net_sup_logger")
     save_config(vars(args), log_dir)
 
+    args.dset_dir = args.proj_dir+args.dset_dir
     src_data = load_mat(join(args.dset_dir, args.source['dset_name']), args.source['dset_fn'])
     src_data, src_ad_labels = mat_to_pyg_data(src_data, undirected=False)
 
@@ -185,7 +197,7 @@ def do_exp():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--proj_dir", type=str, default="/media/nvme1/pycharm_mirror/GUDA_release")
+    parser.add_argument("--proj_dir", type=str, default="")
     parser.add_argument("--config_fn", type=str, default="nyc_to_amz")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--batch_id", type=str, default=None)
@@ -194,6 +206,8 @@ if __name__ == "__main__":
     parser.add_argument("--src_ckpt_dir", type=str, default=None)
     parser.add_argument("--device", type=int, default=None)
     args = parser.parse_args()
+    args.proj_dir = os.path.abspath(os.path.join(os.getcwd(),"../.."))
+    args.share_dir = os.path.abspath(os.path.join(os.getcwd(),"../.."))
 
     if args.batch_id == "null":
         args.batch_id = None
